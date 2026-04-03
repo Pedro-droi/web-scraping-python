@@ -1,0 +1,17 @@
+# CNN Data Extraction Bot - Requirements
+# Professional web scraping solution dependencies
+
+# Core web automation
+selenium>=4.15.0
+
+# GUI framework for desktop application
+customtkinter>=5.2.0
+
+# Optional: WebDriver management (uncomment if needed)
+# webdriver-manager>=4.0.0
+
+# Development dependencies (uncomment for development)
+# pytest>=7.0.0
+# black>=23.0.0
+# flake8>=6.0.0
+# mypy>=1.0.0
