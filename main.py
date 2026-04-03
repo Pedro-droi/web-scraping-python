@@ -3,8 +3,8 @@
 import csv
 import logging
 import os
+import time
 from typing import List, Set
-
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, WebDriverException, TimeoutException
 from selenium.webdriver.chrome.options import Options
@@ -31,7 +31,7 @@ logger = setup_logger()
 
 
 # get_driver: initializes the Chrome engine in headless mode for server-side performance
-def get_driver(headless: bool = True) -> webdriver.Chrome:
+def get_driver(headless: bool = False) -> webdriver.Chrome:
     """Start a Chrome WebDriver instance ready for automated data extraction."""
     options = Options()
 
@@ -100,18 +100,22 @@ def is_valid_headline(text: str, link: str, seen_urls: Set[str]) -> bool:
 
 def save_to_csv(rows: List[dict], output_file: str) -> int:
     """Data structuring: write final headlines to CSV with 3-digit automated indexing."""
-    with open(output_file, "w", newline="", encoding="utf-8") as csv_file:
-        writer = csv.writer(csv_file)
-        writer.writerow(["ID", "MANCHETE", "URL"])
+    try:
+        with open(output_file, "w", newline="", encoding="utf-8") as csv_file:
+            writer = csv.writer(csv_file)
+            writer.writerow(["ID", "MANCHETE", "URL"])
 
-        for idx, row in enumerate(rows, 1):
-            writer.writerow([
-                f"{idx:03d}",
-                row["headline"].strip(),
-                row["url"].strip(),
-            ])
-
-    return len(rows)
+            for idx, row in enumerate(rows, 1):
+                writer.writerow([
+                    f"{idx:03d}",
+                    row["headline"].strip(),
+                    row["url"].strip(),
+                ])
+        logger.info("Successfully saved %d rows to %s", len(rows), output_file)
+        return len(rows)
+    except Exception as exc:
+        logger.error("Failed to save data to CSV: %s", exc)
+        return 0
 
 
 def scrape_cnn(output_file: str = "cnn_data.csv") -> int:
@@ -122,7 +126,8 @@ def scrape_cnn(output_file: str = "cnn_data.csv") -> int:
     seen_urls: Set[str] = set()
     rows: List[dict] = []
 
-    with get_driver(headless=True) as driver:
+    driver = get_driver(headless=False)
+    try:
         try:
             driver.get(url)
         except (TimeoutException, WebDriverException) as exc:
@@ -134,6 +139,12 @@ def scrape_cnn(output_file: str = "cnn_data.csv") -> int:
         except TimeoutException:
             logger.error("No links found on CNN page in wait duration")
             return 0
+
+        # Simulate human behavior: scroll to load dynamic content
+        logger.info("Scrolling to load dynamic content")
+        for _ in range(3):
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(2)
 
         elements = driver.find_elements(By.CSS_SELECTOR, "a")
         logger.info("Found %d link elements", len(elements))
@@ -151,6 +162,8 @@ def scrape_cnn(output_file: str = "cnn_data.csv") -> int:
             if is_valid_headline(normalized_text, normalized_link, seen_urls):
                 seen_urls.add(normalized_link)
                 rows.append({"headline": normalized_text, "url": normalized_link})
+    finally:
+        driver.quit()
 
     if not rows:
         logger.warning("Extraction completed with 0 valid headlines")
